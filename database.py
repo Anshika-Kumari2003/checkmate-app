@@ -1,77 +1,55 @@
-# database.py
-import mysql.connector
-import pandas as pd
 import os
+import pandas as pd
 from dotenv import load_dotenv
+from supabase import create_client, Client
 import google.generativeai as genai
 from utils import format_date, clean_amount
 
-
+# Load environment variables
 load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Configure Gemini AI
 genai.configure(api_key=API_KEY)
 
+# Initialize Supabase client
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_NAME", "checkmate")
-    )
-
-
-def create_table():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS cheques (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            cheque_number VARCHAR(50),
-            account_number VARCHAR(50),
-            bank_name VARCHAR(100),
-            payee VARCHAR(100),
-            amount FLOAT,
-            date VARCHAR(50)
-        )
-    ''')
-    conn.commit()
-    conn.close()
 
 def cheque_exists(cheque_number):
+    """Checks if a cheque number already exists in the database."""
     cheque_number = cheque_number.strip().upper()
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM cheques WHERE UPPER(TRIM(cheque_number)) = %s", (cheque_number,))
-    exists = cursor.fetchone() is not None
-    conn.close()
-    return exists
+    response = supabase.table("cheques").select("id").eq("cheque_number", cheque_number).execute()
+    return len(response.data) > 0
 
 
 def insert_cheque_details(data):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    """Inserts cheque details into the database."""
     try:
         formatted_date = format_date(data.get("cheque_date", ""))
     except ValueError as e:
         raise ValueError(f"🚨 Invalid cheque date: {data.get('cheque_date')}. Error: {e}")
+
     cheque_amount = clean_amount(data.get("amount", ""))
-    query = '''INSERT INTO cheques (cheque_number, account_number, bank_name, payee, amount, date) 
-               VALUES (%s, %s, %s, %s, %s, %s)'''
-    values = (
-        data.get("cheque_number", ""),
-        data.get("account_number", ""),
-        data.get("bank_name", ""),
-        data.get("payee_name", ""),
-        cheque_amount,
-        formatted_date
-    )
-    cursor.execute(query, values)
-    conn.commit()
-    conn.close()
+
+    values = {
+        "cheque_number": data.get("cheque_number", ""),
+        "account_number": data.get("account_number", ""),
+        "bank_name": data.get("bank_name", ""),
+        "payee": data.get("payee_name", ""),
+        "amount": cheque_amount,
+        "date": formatted_date,
+    }
+
+    # Do not manually insert 'id'
+    response = supabase.table("cheques").insert(values).execute()
+    return response
+
+
 
 def fetch_all_records():
-    conn = get_db_connection()
-    df = pd.read_sql("SELECT * FROM cheques", conn)
-    conn.close()
-    return df
+    """Fetches all records from the database and returns as a DataFrame."""
+    response = supabase.table("cheques").select("*").execute()
+    return pd.DataFrame(response.data)

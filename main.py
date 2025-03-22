@@ -10,11 +10,11 @@ import plotly.express as px
 # Import our modules
 #from config import API_KEY
 from utils import format_date, clean_amount
-from database import API_KEY,create_table, cheque_exists, insert_cheque_details, fetch_all_records
+from database import API_KEY, cheque_exists, insert_cheque_details, fetch_all_records
 from extraction import extract_cheque_data
 
 # Initialize the database
-create_table()
+# create_table()
 
 st.set_page_config(page_title="CheckMate", layout="wide")
 st.markdown(
