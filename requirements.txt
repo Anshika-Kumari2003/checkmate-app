@@ -1,0 +1,8 @@
+streamlit
+mysql-connector-python
+pandas
+google-generativeai
+Pillow
+pdf2image
+python-dotenv
+plotly
